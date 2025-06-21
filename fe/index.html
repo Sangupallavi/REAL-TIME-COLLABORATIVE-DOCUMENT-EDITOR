@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CollabDoc Editor</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom right, #e0eafc, #cfdef3);
+    }
+    nav {
+      background-color: #5c67f2;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    nav h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+    .nav-btns button {
+      background-color: white;
+      color: #5c67f2;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-left: 10px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .nav-btns button:hover {
+      background-color: #f1f1f1;
+    }
+    .container {
+      width: 90%;
+      max-width: 600px;
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      margin: 20px auto;
+    }
+    input, textarea, button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    textarea {
+      height: 200px;
+      resize: vertical;
+    }
+    button.action {
+      background-color: #5c67f2;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      margin-top: 15px;
+    }
+    button.action:hover {
+      background-color: #3f48cc;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <h2>📄 CollabDoc Editor</h2>
+    <div class="nav-btns">
+      <button onclick="toggleForm('login')">Login</button>
+      <button onclick="toggleForm('signup')">Signup</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Signup Form -->
+  <div class="container hidden" id="signupBox">
+    <h3>Signup</h3>
+    <input type="text" id="signupUsername" placeholder="Username" required />
+    <input type="email" id="signupEmail" placeholder="Email" required />
+    <input type="password" id="signupPassword" placeholder="Password" required />
+    <button class="action" onclick="signup()">Create Account</button>
+  </div>
+
+  <!-- Login Form -->
+  <div class="container hidden" id="loginBox">
+    <h3>Login</h3>
+    <input type="email" id="loginEmail" placeholder="Email" required />
+    <input type="password" id="loginPassword" placeholder="Password" required />
+    <button class="action" onclick="login()">Login</button>
+  </div>
+
+  <!-- Document Editor -->
+  <div class="container hidden" id="editorBox">
+    <h3>Document Editor</h3>
+    <input type="text" id="docId" placeholder="Document ID (e.g. doc1)" />
+    <textarea id="editor" placeholder="Start typing your content..."></textarea>
+    <button class="action" onclick="addDoc()">➕ Add Document</button>
+    <button class="action" onclick="loadDoc()">📥 Load Document</button>
+    <button class="action" onclick="saveDoc()">💾 Save / Modify Document</button>
+  </div>
+
+  <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+  <script>
+    const API = "http://localhost:3000";
+
+    const signupBox = document.getElementById("signupBox");
+    const loginBox = document.getElementById("loginBox");
+    const editorBox = document.getElementById("editorBox");
+
+    const docIdInput = document.getElementById("docId");
+    const editor = document.getElementById("editor");
+
+    let socket;
+    let docId = "";
+
+    function toggleForm(type) {
+      signupBox.classList.add("hidden");
+      loginBox.classList.add("hidden");
+      editorBox.classList.add("hidden");
+      if (type === 'signup') signupBox.classList.remove("hidden");
+      else if (type === 'login') loginBox.classList.remove("hidden");
+    }
+
+    async function checkSession() {
+      const res = await fetch(`${API}/api/auth/me`, { credentials: "include" });
+      if (res.ok) {
+        signupBox.classList.add("hidden");
+        loginBox.classList.add("hidden");
+        editorBox.classList.remove("hidden");
+      }
+    }
+
+    async function signup() {
+      const username = document.getElementById("signupUsername").value;
+      const email = document.getElementById("signupEmail").value;
+      const password = document.getElementById("signupPassword").value;
+
+      const res = await fetch(`${API}/api/auth/signup`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email, password })
+      });
+      const data = await res.json();
+      alert(data.message);
+      if (res.ok) checkSession();
+    }
+
+    async function login() {
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+
+      const res = await fetch(`${API}/api/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      alert(data.message);
+      if (res.ok) checkSession();
+    }
+
+    async function logout() {
+      const res = await fetch(`${API}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include"
+      });
+      if (res.ok) {
+        alert("Logged out.");
+        location.reload();
+      }
+    }
+
+    async function addDoc() {
+      const id = docIdInput.value.trim();
+      if (!id) return alert("Please enter a document ID.");
+
+      const res = await fetch(`${API}/api/docs/${id}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editor.value })
+      });
+      const data = await res.json();
+      alert(data.message || "Document created.");
+    }
+
+    async function loadDoc() {
+      docId = docIdInput.value.trim();
+      if (!docId) return alert("Enter a document ID to load.");
+
+      const res = await fetch(`${API}/api/docs/${docId}`, {
+        credentials: "include"
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        editor.value = data?.content || "";
+        alert("Document loaded.");
+
+        socket = io(API);
+        socket.emit("join-doc", docId);
+        socket.on("doc-updated", (newContent) => {
+          editor.value = newContent;
+        });
+
+        editor.addEventListener("input", () => {
+          socket.emit("doc-changes", editor.value);
+        });
+      } else {
+        alert("Document not found.");
+      }
+    }
+
+    async function saveDoc() {
+      if (!docId) return alert("Load a document before saving.");
+      const res = await fetch(`${API}/api/docs/${docId}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editor.value })
+      });
+
+      if (res.ok) alert("Document saved.");
+      else alert("Error saving document.");
+    }
+
+    checkSession();
+  </script>
+</body>
+</html>
